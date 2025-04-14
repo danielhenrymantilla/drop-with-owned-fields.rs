@@ -17,6 +17,7 @@
 /// The crate's prelude.
 pub
 mod prelude {
+    #[doc(no_inline)]
     pub use crate::{
         drop_with_owned_fields,
         DropWithOwnedFields,
