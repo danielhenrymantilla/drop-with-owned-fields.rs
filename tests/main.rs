@@ -16,7 +16,7 @@ mod module {
     }
 
     #[::drop_with_owned_fields::drop_with_owned_fields(
-        pub(super) type FooFields = DestructuredFieldsOf<Self>,
+        as pub(super) struct FooFields,
     )]
     #[derive(
         Debug, Default,

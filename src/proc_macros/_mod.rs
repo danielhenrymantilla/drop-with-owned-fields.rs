@@ -7,7 +7,10 @@ use ::core::{
     mem,
     ops::Not as _,
 };
-use std::borrow::Cow;
+use ::std::{
+    borrow::Cow,
+};
+use args::RenameOfDestructuredFieldsType;
 use ::proc_macro::{
     TokenStream,
 };
@@ -16,9 +19,9 @@ use ::proc_macro2::{
     TokenStream as TokenStream2,
     TokenTree as TT,
 };
-use quote::quote_spanned;
 use ::quote::{
     format_ident,
+    quote_spanned,
     ToTokens,
 };
 use ::syn::{*,
@@ -34,7 +37,7 @@ use self::utils::default_to_mixed_site_span::{
 #[macro_use]
 #[path = "utils/_mod.rs"]
 mod utils;
-use utils::{BorrowedExt, Retain};
+use utils::{AlsoExt, BorrowedExt, Either, Retain};
 
 mod args;
 
@@ -120,7 +123,7 @@ fn drop_with_owned_fields_impl(
         #[cfg(feature = "drop-sugar")]
         Input::ItemImpl(item_impl) => return drop_sugar::handle(args, item_impl),
     };
-    let args: args::Args = parse2(args)?;
+    let ref args: args::Args = parse2(args)?;
     let DeriveInput {
         vis: pub_,
         attrs,
@@ -142,25 +145,31 @@ fn drop_with_owned_fields_impl(
             return Err(Error::new(span, "expected a `struct`"));
         },
     };
-    let pub_super = match &*pub_ {
-        | Visibility::Public(_) => pub_.borrowed(),
-        | Visibility::Inherited => Cow::Owned(parse_quote!(pub(super))),
-        | Visibility::Restricted(VisRestricted { path, .. }) => {
-            match path.get_ident().map(ToString::to_string).as_deref() {
-                | Some("crate")
-                | _ if path.leading_colon.is_some()
-                => {
-                    pub_.borrowed()
-                },
-                | Some("self") => Cow::Owned(parse_quote!(
-                    pub(super)
-                )),
-                | _ => Cow::Owned(parse_quote!(
-                    pub(in super :: #path)
-                )),
-            }
-        },
-    };
+    fn super_of(pub_: &Visibility) -> Cow<'_, Visibility> {
+        match &*pub_ {
+            | Visibility::Public(_) => pub_.borrowed(),
+            | Visibility::Inherited => Cow::Owned(parse_quote!(pub(super))),
+            | Visibility::Restricted(VisRestricted { path, .. }) => {
+                match path.get_ident().map(ToString::to_string).as_deref() {
+                    | Some("crate") => pub_.borrowed(),
+                    | _ if path.leading_colon.is_some() => pub_.borrowed(),
+                    | Some("self") => Cow::Owned(parse_quote!(
+                        pub(super)
+                    )),
+                    | _ => Cow::Owned(parse_quote!(
+                        pub(in super :: #path)
+                    )),
+                }
+            },
+        }
+    }
+    let pub_super = super_of(pub_);
+    let fields = fields.clone().also(|fields| {
+        fields.iter_mut().for_each(|Field { vis: pub_, .. }| {
+            *pub_ = super_of(pub_).into_owned();
+        });
+    });
+
     let pub_capped_at_crate = match &*pub_ {
         | Visibility::Public(_) => Cow::Owned(parse_quote!(
             pub(crate)
@@ -169,51 +178,58 @@ fn drop_with_owned_fields_impl(
     };
     let (IntroGenerics @ _, FwdGenerics @ _, where_clauses) = generics.split_for_impl();
 
-    let fields_struct_pub;
+    let struct_name_helper_module = &format_ident!(
+        "_{StructName}ඞdrop_with_owned_fields"
+    );
+
     let fields_struct_span;
-    let mut maybe_doc_hidden = quote!();
-    let StructNameDestructuredFields @ _ = if let Some(rename) = &args.maybe_rename {
-        fields_struct_pub = &rename.pub_;
-        fields_struct_span = rename.type_.span();
-        &rename.name
-    } else {
-        maybe_doc_hidden = quote!(#[doc(hidden)]);
-        fields_struct_pub = pub_;
-        fields_struct_span = Span::mixed_site();
-        &format_ident!("{StructName}ඞDestructuredFields")
+    let mut maybe_re_export = quote!();
+    let StructNameFields @ _ = match &args.maybe_rename {
+        Either::Left(RenameOfDestructuredFieldsType {
+            pub_,
+            struct_,
+            name: StructNameFields @ _,
+        }) => {
+            maybe_re_export = quote!(
+                #pub_ use #struct_name_helper_module::#StructNameFields;
+            );
+            fields_struct_span = struct_.span();
+            StructNameFields
+        },
+        Either::Right(infer) => {
+            fields_struct_span = infer.span_location();
+            &format_ident!("{StructName}ඞFields", span=fields_struct_span)
+        },
     };
     let struct_fields_def = quote_spanned!(fields_struct_span=>
-        #maybe_doc_hidden
         #(#attrs)*
-        #fields_struct_pub
-        struct #StructNameDestructuredFields #IntroGenerics
+        #pub_super
+        struct #StructNameFields #IntroGenerics
         #where_clauses
         #fields
         #semi_token
     );
 
-    let struct_name_helper_module = &format_ident!(
-        "_{StructName}ඞdrop_with_owned_fields"
-    );
-
     let other_derives_and_attrs_hack =
         derives::best_effort_compat_with_other_derives_and_attrs(
             &input,
-            StructNameDestructuredFields,
+            StructNameFields,
         )?
     ;
 
     Ok(quote!(
         #other_derives_and_attrs_hack
 
-        #struct_fields_def
-
         #[doc(inline)]
         #(#docs)*
         #pub_ use #struct_name_helper_module::#StructName;
 
+        #maybe_re_export
+
         mod #struct_name_helper_module {
             use super::*;
+
+            #struct_fields_def
 
             #[repr(transparent)]
             #pub_super
@@ -255,34 +271,26 @@ fn drop_with_owned_fields_impl(
                 #StructName #FwdGenerics
             #where_clauses
             {
-                type DestructuredFields = #StructNameDestructuredFields #FwdGenerics;
-
-                #[inline]
-                fn destructure_fields_disabling_extra_drop(self)
-                  -> Self::DestructuredFields
-                {
-                    #![deny(unconditional_recursion)]
-                    Self::destructure_fields_disabling_extra_drop(self)
-                }
+                type Fields = #StructNameFields #FwdGenerics;
             }
 
             impl #IntroGenerics
                 ::core::convert::From<
-                    #StructNameDestructuredFields #FwdGenerics,
+                    #StructNameFields #FwdGenerics,
                 >
             for
                 #StructName #FwdGenerics
             #where_clauses
             {
                 #[inline]
-                fn from(this: #StructNameDestructuredFields #FwdGenerics)
+                fn from(this: #StructNameFields #FwdGenerics)
                   -> Self
                 {
                     this.into()
                 }
             }
 
-            impl #IntroGenerics #StructNameDestructuredFields #FwdGenerics
+            impl #IntroGenerics #StructNameFields #FwdGenerics
             #where_clauses
             {
                 #[inline]
@@ -301,8 +309,8 @@ fn drop_with_owned_fields_impl(
                 #[inline]
                 #pub_capped_at_crate
                 const
-                fn destructure_fields_disabling_extra_drop(self: #StructName #FwdGenerics)
-                  -> #StructNameDestructuredFields #FwdGenerics
+                fn destructure_fields_disabling_impl_drop(self: #StructName #FwdGenerics)
+                  -> #StructNameFields #FwdGenerics
                 {
                     // Defuse extra `Drop` glue of `Self`.
                     let this = ::core::mem::ManuallyDrop::new(self);
@@ -317,7 +325,7 @@ fn drop_with_owned_fields_impl(
                         ::core::mem::ManuallyDrop::into_inner(
                             ::drop_with_owned_fields::ඞ::ConstTransmuteUnchecked::<
                                 #StructName #FwdGenerics,
-                                #StructNameDestructuredFields #FwdGenerics,
+                                #StructNameFields #FwdGenerics,
                             >
                             {
                                 src: this,

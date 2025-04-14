@@ -5,6 +5,12 @@ use super::*;
 pub(crate)
 enum Retain { Yes, No }
 
+pub(crate)
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
 #[macro_use]
 pub(crate) mod default_to_mixed_site_span {
     #![allow(unused)]
@@ -62,3 +68,12 @@ trait BorrowedExt : Clone {
     }
 }
 impl<T : Clone> BorrowedExt for T {}
+
+pub
+trait AlsoExt : Sized {
+    fn also(mut self, f: impl FnOnce(&mut Self)) -> Self {
+        f(&mut self);
+        self
+    }
+}
+impl<T> AlsoExt for T {}

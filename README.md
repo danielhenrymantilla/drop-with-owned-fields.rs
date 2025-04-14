@@ -1,6 +1,7 @@
 # `::drop-with-owned-fields`
 
-Safe and sound _owned_ access to a `struct`'s fields in `Drop`: no more `unsafe` usage of `ManuallyDrop`!
+Safe and sound _owned_ access to a `struct`'s fields in `Drop`: no more `unsafe` usage of
+`ManuallyDrop`!
 
 [![Repository](https://img.shields.io/badge/repository-GitHub-brightgreen.svg)](
 https://github.com/danielhenrymantilla/drop-with-owned-fields.rs)
@@ -28,7 +29,7 @@ before others are, or when actually needing to [`take`][`ManuallyDrop::take()`] 
 to that field. These two operations are `unsafe`, despite the notorious soundness of the whole
 pattern, which is quite unfortunate. The objective of this crate is to properly identify and
 automate this "notoriously sound" pattern, so as to expose a _safe and sound_ API for users to take
-advantage of, with all the power of the type system supporting them and gently nudging them away
+advantage of, with all the power of the type system supporting them and astly nudging them away
 from bugs.
 
 ## Examples
@@ -88,7 +89,7 @@ Enter [`#[drop_with_owned_fields]`][`drop_with_owned_fields`]:
 #
 use ::drop_with_owned_fields::drop_with_owned_fields;
 
-#[drop_with_owned_fields]
+#[drop_with_owned_fields(as _)]
 struct Defer<F: FnOnce()> {
     f: F,
 }
@@ -107,7 +108,8 @@ shall, in turn, enable the `"full"` features of `::syn` (resulting in a slightly
 from-scratch compile-time, _should no other crate in the dependency tree have enabled it
 already_).
 
-Without it, the `Drop` block and logic would have had to be spelled out a bit more explicitly, like so:
+Without it, the `Drop` block and logic would have had to be spelled out a bit more explicitly, like
+so:
 
 <details class="custom"><summary><span class="summary-box"><span>Click to show</span></span></summary>
 
@@ -116,7 +118,7 @@ Without it, the `Drop` block and logic would have had to be spelled out a bit mo
 #
 use ::drop_with_owned_fields::prelude::*;
 
-#[drop_with_owned_fields]
+#[drop_with_owned_fields(as _)]
 struct Defer<F: FnOnce()> { f: F }
 
 impl<F: FnOnce()> DropWithOwnedFields for Defer<F> {
@@ -126,14 +128,33 @@ impl<F: FnOnce()> DropWithOwnedFields for Defer<F> {
 }
 ```
 
-or, if the `DestructuredFieldsOf<Self>` stutter is then deemed unæsthetic:
+or if `DestructuredFieldsOf::<Self>` is deemed unæsthetic:
 
 ```rust
 # fn main() {}
 #
 use ::drop_with_owned_fields::prelude::*;
 
-#[drop_with_owned_fields]
+//                            👇       👇
+#[drop_with_owned_fields(as struct DeferFields)]
+struct Defer<F: FnOnce()> { f: F }
+
+impl<F: FnOnce()> DropWithOwnedFields for Defer<F> {
+    fn drop(DeferFields { f }: DeferFields<F>) {
+        f(); // ✅
+    }
+}
+```
+
+or, you can skip the destructuring in the `fn` arg position as well if you fancy:
+
+
+```rust
+# fn main() {}
+#
+use ::drop_with_owned_fields::prelude::*;
+
+#[drop_with_owned_fields(as struct DeferFields)]
 struct Defer<F: FnOnce()> { f: F }
 
 impl<F: FnOnce()> DropWithOwnedFields for Defer<F> {
@@ -143,7 +164,7 @@ impl<F: FnOnce()> DropWithOwnedFields for Defer<F> {
             (this.f)(); // ✅
         } else {
             // …or another.
-            let DestructuredFieldsOf::<Self> { f } = this;
+            let DeferFields { f } = this;
             f(); // ✅
         }
     }
@@ -158,12 +179,12 @@ impl<F: FnOnce()> DropWithOwnedFields for Defer<F> {
 
 </details>
 
-If you forget to `impl DropWithOwnedFields` (with or without sugar), like so:
+If you forget to <code>impl [DropWithOwnedFields]</code> (with or without sugar), like so:
 
 ```rust ,compile_fail
 # use ::drop_with_owned_fields::drop_with_owned_fields;
 #
-#[drop_with_owned_fields]
+#[drop_with_owned_fields(as _)]
 struct Example {
     // …
 }
@@ -182,8 +203,8 @@ you will then get the following compiler error message:
 error[E0277]: the trait bound `Example: DropWithOwnedFields` is not satisfied
  --> src/_lib.rs:130:1
   |
-6 | #[drop_with_owned_fields]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `DropWithOwnedFields` is not implemented for `Example`
+6 | #[drop_with_owned_fields(as _)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `DropWithOwnedFields` is not implemented for `Example`
   |
   = note: The `#[drop_with_owned_fields]` annotation expects 🫵 you to provide a companion `impl` of `DropWithOwnedFields` (the whole point!).
 
@@ -201,7 +222,9 @@ error[E0277]: the trait bound `Example: DropWithOwnedFields` is not satisfied
 
 <details open class="custom"><summary><span class="summary-box"><span>Click to hide</span></span></summary>
 
-Another case where one may need owned access to a field in drop is when the field is doing its own linear/affine-ish types thing, and having different "destructors" requiring and consuming an owned `self`.
+Another case where one may need owned access to a field in drop is when the field is doing its own
+linear/affine-ish types thing, and having different "destructors" requiring and consuming an owned
+`self`.
 
 Typically, `transaction` handles do this for their `.commit()` and `.roll_back()` functions:
 
@@ -223,7 +246,7 @@ mod example_lib {
     }
 }
 
-#[drop_with_owned_fields]
+#[drop_with_owned_fields(as _)]
 struct CommitOnDrop {
     txn: Transaction,
 }
@@ -242,7 +265,7 @@ impl Drop for CommitOnDrop {
 
 ## Unsugaring
 
-Taking the `Defer<F>` example, for instance, but renamed as Foo:
+Taking the `Defer<F>` example, for instance, but renamed as `Foo`:
 
 ```rust
 #[::drop_with_owned_fields::drop_with_owned_fields]
@@ -252,7 +275,7 @@ impl<F: FnOnce()> Drop for Foo<F> {
     }
 }
 
-#[::drop_with_owned_fields::drop_with_owned_fields]
+#[::drop_with_owned_fields::drop_with_owned_fields(as _)]
 struct Foo<F: FnOnce()> {
     f: F,
 }
@@ -266,31 +289,32 @@ unsugars to code along the following lines (papering over robust namespacing and
 # use ::core::{mem::ManuallyDrop, ops::{Deref, DerefMut}};
 # use ::drop_with_owned_fields::prelude::*;
 #
-/// Unsugaring of the `Drop` impl.
+// == Unsugaring of the `Drop` impl: ==
+
 impl<F: FnOnce()> DropWithOwnedFields for Foo<F> {
-    fn drop(FooFields { f }: FooFields<F>) {
+    // i.e.                   FooඞFields { f }: FooඞFields<F>
+    fn drop(DestructuredFieldsOf::<Self> { f }: DestructuredFieldsOf<Self>) {
         f();
     }
 }
 
 // == Unsugaring of the `struct Foo` definition: ==
 
-struct FooFields<F: FnOnce()> {
+struct FooඞFields<F: FnOnce()> {
     f: F,
 }
 
-/// This is what makes `DestructuredFieldsOf<Foo<F>> == FooFields<F>`.
+/// This is what defines `DestructuredFieldsOf<Foo<F>>` to be `FooඞFields<F>`.
 impl<F: FnOnce()> ::drop_with_owned_fields::DestructureFields for Foo<F> {
-    type DestructuredFields = FooFields<F>;
-    # fn destructure_fields_disabling_extra_drop(self) -> Self::DestructuredFields { todo!() }
+    type Fields = FooඞFields<F>;
 }
 # impl<F: FnOnce()> ::drop_with_owned_fields::ඞ::drop_with_owned_fields_annotation for Foo<F> {}
 
 // The `ManuallyDrop` unsafe-but-sound pattern!
 struct Foo<F: FnOnce()> {
-    // real fields no longer in the `struct`, but moved to the companion `SelfFields` data type!
+    // real fields no longer in the `struct`, but moved to the `SelfFields` data type!
     // 👇
-    manually_drop_fields: ManuallyDrop<FooFields<F>>,
+    manually_drop_fields: ManuallyDrop<FooඞFields<F>>,
 }
 impl<F: FnOnce()> Drop for Foo<F>
 where
@@ -312,66 +336,111 @@ where
 
 // -- 1. `.field_name` access sugar:
 impl<F: FnOnce()> Deref for Foo<F> {
-    type Target = FooFields<F>;
+    type Target = FooඞFields<F>;
     // …
-    # fn deref(&self) -> &FooFields<F> { &self.manually_drop_fields }
+    # fn deref(&self) -> &FooඞFields<F> { &self.manually_drop_fields }
 }
 // Ditto for `DerefMut`
 
 # #[cfg(any())]
 // -- 2. Constructor builder/helper
-impl<F: FnOnce()> Into<Foo<F>> for FooFields<F> {
+impl<F: FnOnce()> Into<Foo<F>> for FooඞFields<F> {
     // ...
 }
 #
 # fn main() {}
 ```
 
-Mainly, notice the very important addition of a "companion `struct`": `FooFields<F>`:
+Mainly, notice the very important addition of a "companion `struct`", `FooඞFields<F>`:
 
-## The companion `struct FooFields<…>`
+## The companion `struct FooඞFields<…>`
 
 This is the `struct` containing all of the fields laid out as they initially were for the original
-`Foo` definition. The trick having been about splitting the original `Foo` definition (as input to
+`Foo` definition. The trick having been to split the original `Foo` definition (as input to
 the macro) into two `struct` definitions:
-
-  - the `FooFields<…>` "copy", which has the fields **but has no extra/customized `Drop` glue nor
-    `impl` whatsoever**.
 
   - the `Foo<…>` original type, which does have the desired extra/customized `Drop impl`, but in
     exchange of that it had to forsake carrying the fields directly, using a
-    `ManuallyDrop<FooFields<…>>` layer instead.
+    `ManuallyDrop<FooඞFields<…>>` layer instead.
 
-More generally, for every `StructName<Generics…>`, there shall be a companion
-`StructNameFields<Generics…>` definition.
+  - a companion `FooඞFields<…>` definition, a "verbatim copy" of the original input but for its name
+    (_e.g._, it has the original field definitions), **but which has no extra/customized `impl Drop`
+    whatsoever**.
 
-  - There is a way to make the attribute name this data structure as _you_ desire: its default name
-    can thus be overridden;
+    It is guaranteed to have the same fields as the original `Foo` definition, in terms of:
 
-  - otherwise, the default name is _currently left unspecified_ (and will probably involve some `ඞ`
-    sigil somewhere in the name to communicate this fact and deter from direct usage).
+      - accessing these fields, implicitly, within the `Deref{,Mut}` of `Foo`;
 
-    Instead, the [`DestructureFields`] `trait` can be used, _especially its
-    [`DestructuredFields`] associated type_.
+      - deconstructing it when `impl`ementing [`DropWithOwnedFields`] for `Foo`;
 
-    Or the convenience [`DestructuredFieldsOf<_>`][`DestructuredFieldsOf`] `type` alias:
+      - constructing this `FooFields { … }` instance, which, as we are about to see, shall be
+        _paramount_ for the instantiation of a `Foo { … }` value.
+
+  - if the `ඞ` in the name scares you, don't worry, this only happens if you have forfeited interest
+    in naming it yourself by using the `as _` attribute arg.
+    [Otherwise it can easily be renamed and made `pub`lic by using `as struct YourName` instead](
+    #renaming-the-companion-struct).
+
+  - otherwise, the default name is _currently left unspecified_, and probably even _private_[^path].
+
+    In that case, the [`DestructureFields`] `trait` can be used, _especially its
+    [`Fields`] associated type_, to still be able to refer to this type.
+
+    Hence the convenience [`DestructuredFieldsOf<_>`][`DestructuredFieldsOf`] `type` alias:
 
     ```rust ,ignore
-    DestructuredFieldsOf<Foo<F>> = <Foo<F> as DestructureFields>::DestructuredFields
-                                 = FooFields<F>
+    DestructuredFieldsOf::<Foo<F>> = <Foo<F> as DestructureFields>::Fields
+                                   = FooඞFields<F>
     ```
 
-    This yields a properly specified and usable type name.
+    This "proxy type" yields a properly specified and usable way to refer to the `…Fields`, no
+    matter what the actual name of `…Fields` ends up being 🙂.
 
-It is guaranteed to have the same fields as the original `Foo` definition, in terms of:
-  - deconstructing and/or accessing these fields in `Drop` of `Deref{,Mut}`;
-  - constructing this `FooFields { … }` instance, which, as we are about to see, shall be not only
-    handy but _paramount_ for the instantiation of a `Foo { … }` value.
+[^path]: or rather, _sealed_, as in, trapped in a private module which ought to result in an
+unnameable containing type _path_. The type itself, in the sense of actual _type privacy_, needs to
+be `pub` (or rather, at least as `pub` as the original `struct` definition), in order for the
+<code>[DestructureFields]::[Fields]</code> associated type to be well-formed. And this difference
+can actually be witnessed in practice, since <code>[DestructuredFieldsOf]\<Foo\></code> is just as
+`pub`lic and reachable as `Foo` is, no matter how much `FooඞFields` might have been sealed / how
+much private its containing `mod`ule might be.
+
+## Renaming the companion `struct`
+
+Since having to type <code>[DestructuredFieldsOf]::\<Foo\<F\>\></code> all the time can be deemed
+cumbersome and noisy, the [`#[drop_with_owned_fields]`][`drop_with_owned_fields`] attribute takes
+this `as …` attribute arg, which can optionally be of the form
+`as $($pub:vis)? struct $StructName:ident`:
+  - to both override the name of that companion struct,
+  - and adjust its visibility so that it be allowed to be fully `pub`lic should the author wish so:
+
+```rust
+use ::drop_with_owned_fields::prelude::*;
+
+#[drop_with_owned_fields(as pub struct FooFields)]
+pub struct Foo<F: FnOnce()> { f: F }
+
+impl<F: FnOnce()> DropWithOwnedFields for Foo<F> {
+    fn drop(FooFields { f }: FooFields<F>) {
+        f(); // ✅
+    }
+}
+#
+# fn main() {}
+```
+
+If, on the other hand, you are fine using <code>[DestructuredFieldsOf]::\<Foo\<F\>\></code>, **or
+just don't really need to, thanks to the `"drop-sugar"` feature**, then you are free to dismiss this
+and use `as _` instead.
+
+Do note that this "dismissal" at the call-site is interpreted, by the macro, as a license to use a
+private[^path] name for the companion `struct`, hiding it from the docs. If you wish the companion
+`struct` to be `pub`, then do put in the effort to say so, and name it, rather than using `_`.
 
 ## Braced literal construction of `Foo { … }`
 
-It is not longer available once the [`#[drop_with_owned_fields]`][`drop_with_owned_fields`] pass has
-happened onto `Foo`'s definition.
+Alas, this ceases to be available once the [`#[drop_with_owned_fields]`][`drop_with_owned_fields`]
+pass has happened onto `Foo`'s definition. This is the one and main "regression" which using this
+attribute entails. Such is the price to pay for the safe-and-sound `ManuallyDrop` pattern, I guess.
 
 Indeed, instead, we have something along the lines of:
 
@@ -381,7 +450,7 @@ struct Foo<F> {
 }
 ```
 
-  - (with `.manually_drop_fields` being a field name left _private_);
+  - (With `.manually_drop_fields` being a field name left _private_.)
 
 This, obviously, prevents the "typical" braced-`struct`-literal construction of a `Foo { … }`.
 
@@ -419,9 +488,10 @@ of the `FooFields { … } struct` and _its eponymous fields_, and then simply ca
 convert it "back" into a `Foo { … }`:
 
 ```rust
-use ::drop_with_owned_fields::prelude::*;
+use ::drop_with_owned_fields::drop_with_owned_fields;
 
-#[drop_with_owned_fields]
+//                                     👇
+#[drop_with_owned_fields(as struct DeferFields)]
 pub struct Defer<F: FnOnce()> {
     f: F,
 }
@@ -435,42 +505,46 @@ impl<F: FnOnce()> Drop for Defer<F> {
 
 impl<F: FnOnce()> Defer<F> {
     pub fn new(f: F) -> Self {
-        DestructuredFieldsOf::<Self> { f }.into() // 👈
+        DeferFields { f }.into()
+        //              👆
     }
 }
 
 fn main() {
-    let _defer = Defer::new(|| println!("General Kenobi."));
+    let _defer = Defer::new(|| println!("general Kenobi."));
     println!("Hello, there!");
 }
 ```
 
-## Renaming the companion `struct`
-
-Since having to type `DestructuredFieldsOf<Foo<F>>` all the time can be deemed cumbersome, and
-noisy, the [`#[drop_with_owned_fields]`][`drop_with_owned_fields`] attribute accepts an optional
-attribute arg to:
-- both override the  name of that companion struct,
-- and adjust its visibility so that it be allowed to be fully `pub`lic should the author with so:
+or, if you are really hang up on not naming `DeferFields`:
 
 ```rust
 use ::drop_with_owned_fields::prelude::*;
 
-#[drop_with_owned_fields(
-    pub type FooFields = DestructuredFieldsOf<Self>,
-)]
-pub struct Foo<F: FnOnce()> { f: F }
+#[drop_with_owned_fields(as _)]
+pub struct Defer<F: FnOnce()> {
+    f: F,
+}
 
-impl<F: FnOnce()> DropWithOwnedFields for Foo<F> {
-    fn drop(FooFields { f }: FooFields<F>) {
-        f(); // ✅
+#[drop_with_owned_fields]
+impl<F: FnOnce()> Drop for Defer<F> {
+    fn drop(Self { f }: _) {
+        f();
+    }
+}
+
+impl<F: FnOnce()> Defer<F> {
+    pub fn new(f: F) -> Self {
+        DestructuredFieldsOf::<Self> { f }.into()
+        //                               👆
     }
 }
 #
 # fn main() {}
 ```
 
-<!-- Note: the following links are just for Github's `README.md`, since docs.rs has these shadowed by the proper intra-doc links. -->
+<!-- Note: the following links are just for Github's `README.md`,
+since docs.rs has these shadowed by the proper intra-doc links. -->
 
 [`ManuallyDrop`]: https://doc.rust-lang.org/stable/std/mem/struct.ManuallyDrop.html
 
@@ -482,6 +556,16 @@ impl<F: FnOnce()> DropWithOwnedFields for Foo<F> {
 
 [`DestructureFields`]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DestructureFields.html
 
-[`DestructuredFields`]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DestructureFields.html#associatedtype.DestructuredFields
+[DestructureFields]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DestructureFields.html
+
+[`Fields`]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DestructureFields.html#associatedtype.Fields
+
+[Fields]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DestructureFields.html#associatedtype.Fields
 
 [`DestructuredFieldsOf`]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/type.DestructuredFieldsOf.html
+
+[DestructuredFieldsOf]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/type.DestructuredFieldsOf.html
+
+[`DropWithOwnedFields`]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DropWithOwnedFields.html
+
+[DropWithOwnedFields]: https://docs.rs/drop-with-owned-fields/*/drop_with_owned_fields/trait.DropWithOwnedFields.html

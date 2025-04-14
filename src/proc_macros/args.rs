@@ -1,43 +1,50 @@
 use super::*;
 
 mod kw {
-    ::syn::custom_keyword!(DestructuredFieldsOf);
+    // ...
 }
 
-#[derive(Default)]
 pub(crate)
 struct Args {
-    pub(crate) maybe_rename: Option<PublicRenameOfDestructuredFieldsType>,
+    pub(crate) _as: Token![as],
+    pub(crate) maybe_rename: Either<RenameOfDestructuredFieldsType, Token![_]>,
 }
 
 impl Parse for Args {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         || -> Result<_> {
-            let mut ret = Args::default();
+            let as_ = input.parse()?;
+            let maybe_rename = {
+                let peeker = input.lookahead1();
+                match () {
+                    | _case if peeker.peek(Token![_]) => {
+                        Either::Right(input.parse().unwrap())
+                    }
+                    | _case if peeker.peek(Token![pub]) || peeker.peek(Token![struct]) => {
+                        Either::Left(input.parse()?)
+                    }
+                    | _default => return Err(peeker.error()),
+                }
+            };
+            let _: Option<Token![,]> = input.parse()?;
             while input.is_empty().not() {
                 let peeker = input.lookahead1();
                 match () {
-                    | _case if peeker.peek(Token![pub]) || peeker.peek(Token![type]) => {
-                        if ret.maybe_rename.is_some() {
-                            return Err(input.error("duplicate arg"));
-                        }
-                        ret.maybe_rename = Some(
-                            input.parse()?
-                        );
-                    },
                     | _default => return Err(peeker.error()),
                 }
-                let _: Option<Token![,]> = input.parse()?;
+                // let _: Option<Token![,]> = input.parse()?;
             }
-            Ok(ret)
+            Ok(Self { _as: as_, maybe_rename })
         }().map_err(|mut err| {
             err.combine(Error::new_spanned(
                 &err.to_compile_error(),
 "\
 Usage:
     #[drop_with_owned_fields(
-        // Optional arg:
-        $( $pub:vis )? type $FooFields:ident = DestructuredFieldsOf<Self>,
+        // Required, either:
+        as _
+        // or:
+        as $( $pub:vis )? struct $FooFields:ident,
     )]
     ...\
                 ",
@@ -47,37 +54,19 @@ Usage:
     }
 }
 
-/// ```rust ,ignore
-/// #[drop_with_owned_fields(
-///     pub(...)? type FooFields = DestructuredFieldsOf<Self>,
-/// )]
-/// struct Foo {
-///     ...
-/// }
-/// ```
 pub(crate)
-struct PublicRenameOfDestructuredFieldsType {
+struct RenameOfDestructuredFieldsType {
     pub(crate) pub_: Visibility,
-    pub(crate) type_: Token![type],
+    pub(crate) struct_: Token![struct],
     pub(crate) name: Ident,
-    pub(crate) _eq_: Token![=],
-    pub(crate) _destructured_fields_of: kw::DestructuredFieldsOf,
-    pub(crate) _lt: Token![<],
-    pub(crate) _Self: Token![Self],
-    pub(crate) _gt: Token![>],
 }
 
-impl Parse for PublicRenameOfDestructuredFieldsType {
+impl Parse for RenameOfDestructuredFieldsType {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         Ok(Self {
             pub_: input.parse()?,
-            type_: input.parse()?,
+            struct_: input.parse()?,
             name: input.parse()?,
-            _eq_: input.parse()?,
-            _destructured_fields_of: input.parse()?,
-            _lt: input.parse()?,
-            _Self: input.parse()?,
-            _gt: input.parse()?,
         })
     }
 }
