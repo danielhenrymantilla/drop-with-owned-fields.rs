@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "drop-with-owned-fields"
-version = "0.1.0-rc1"
+version = "0.1.0"
 dependencies = [
  "drop-with-owned-fields",
  "drop-with-owned-fields-proc_macros",
@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "drop-with-owned-fields-proc_macros"
-version = "0.1.0-rc1"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
