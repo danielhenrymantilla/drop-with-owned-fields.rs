@@ -11,7 +11,9 @@ https://crates.io/crates/drop-with-owned-fields)
 https://docs.rs/drop-with-owned-fields)
 [![MSRV](https://img.shields.io/badge/MSRV-1.79.0-white)](
 https://gist.github.com/danielhenrymantilla/9b59de4db8e5f2467ed008b3c450527b)
-[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](
+[![unsafe used](https://img.shields.io/badge/unsafe-used-ffcc66.svg)](
+https://github.com/rust-secure-code/safety-dance/)
+[![so that you don't](https://img.shields.io/badge/so_that-you_dont-success.svg)](
 https://github.com/rust-secure-code/safety-dance/)
 [![License](https://img.shields.io/crates/l/drop-with-owned-fields.svg)](
 https://github.com/danielhenrymantilla/drop-with-owned-fields.rs/blob/master/LICENSE-ZLIB)
