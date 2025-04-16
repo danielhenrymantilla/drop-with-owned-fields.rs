@@ -170,11 +170,11 @@ fn drop_with_owned_fields_impl(
         });
     });
 
-    let pub_capped_at_crate = match &*pub_ {
+    let pub_capped_at_crate = match &*pub_super {
         | Visibility::Public(_) => Cow::Owned(parse_quote!(
             pub(crate)
         )),
-        | _ => pub_.borrowed(),
+        | it => it.borrowed(),
     };
     let (IntroGenerics @ _, FwdGenerics @ _, where_clauses) = generics.split_for_impl();
 

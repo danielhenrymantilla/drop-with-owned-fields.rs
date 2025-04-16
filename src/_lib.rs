@@ -35,19 +35,96 @@ mod seal {
 
 /// Trait introducing the `Foo -> FooඞFields` association.
 ///
+/// Automatically and exclusively implemented for
+/// [`#[drop_with_owned_fields]`][drop_with_owned_fields]-annotated `struct` definitions.
+///
 /// Read [the relevant section of the crate docs](
 /// `crate`#the-companion-struct-fooඞfields) for more info about it.
 pub
 trait DestructureFields : Sized + seal::drop_with_owned_fields_annotation {
+    /// The `…ඞFields` for `Self`, guaranteed to be a field-destructurable `struct` (with
+    /// no [`Drop`] `impl`, thus).
     type Fields;
 
-    /// Function available on every `FooඞFields` definition, actually, as an _inherent_
-    /// `pub(crate) const fn`.
+    /// "Defuse" the `impl Drop` on `Self` and return a field-destructurable `struct` witness of it.
     ///
-    /// The reason this is never `pub`, is to avoid soundness footguns with contrived APIs.
+    /// Note that "the `impl Drop`" on a type is rather "the optional [`ExtraDropGlue`]" of such a
+    /// type; in other words, calling this method **only disables the shallowmost layer of custom
+    /// drop glue**, the one having been added in the <code>impl [DropWithOwnedFields]</code> block.
     ///
-    /// That is why this `trait` method **does not really exist in practice**, it is just here
-    /// for documentation purposes.
+    /// The _transitive_, _structural_, _drop glue_, of each and every field thereof is very much
+    /// not disabled, and is what gets returned in that [`Self::Fields`] return type.
+    ///
+    ///   - That's how you shall get owned access to the pattern-bound variables;
+    ///
+    ///   - and the ones not explicitly bound in such a pattern, _e.g._, covered by a `, ..`
+    ///     trailing pattern, or explicitly `: _`-discarded, shall get dropped at the end of that
+    ///     very destructuring statement.
+    ///
+    /// [`ExtraDropGlue`]: `Drop`
+    ///
+    /// # Example
+    ///
+    /// This can be useful in situations such as [the `CommitOnDrop` example of the crate
+    /// docs][`crate`#example-transactioncommit-in-drop], when wanting to add `.roll_back()`
+    /// functionality.
+    ///
+    /// ```rust
+    /// use ::drop_with_owned_fields::prelude::*;
+    ///
+    /// use example_lib::Transaction;
+    /// // where:
+    /// mod example_lib {
+    ///     pub struct Transaction {
+    ///         // …
+    ///     }
+    ///
+    ///     impl Transaction {
+    ///         /// Owned access required for stronger type-safety 👌
+    ///         pub fn commit(self) {
+    ///             // …
+    ///         }
+    ///         /// Owned access required for stronger type-safety 👌
+    ///         pub fn roll_back(self) {
+    ///             // …
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// #[drop_with_owned_fields(as struct CommitOnDropFields)]
+    /// struct CommitOnDrop {
+    ///     txn: Transaction,
+    ///     // …
+    /// }
+    ///
+    /// impl DropWithOwnedFields for CommitOnDrop {
+    ///     fn drop(CommitOnDropFields { txn, .. }: CommitOnDropFields) {
+    ///         txn.commit(); // ✅
+    ///     }
+    /// }
+    ///
+    /// impl CommitOnDrop {
+    ///     fn roll_back(self) {
+    ///         //                                       👇
+    ///         let CommitOnDropFields { txn, .. } = self.destructure_fields_disabling_impl_drop();
+    ///         txn.roll_back(); // ✅
+    ///     }
+    /// }
+    /// #
+    /// # fn main() {}
+    /// ```
+    ///
+    /// ## Remarks
+    ///
+    /// This function shall be available on every
+    /// [`#[drop_with_owned_fields]`][drop_with_owned_fields]-annotated type, actually, **but as an
+    /// _inherent_ `pub(crate) const fn` method; _not_ as a trait method!** ⚠️
+    ///
+    /// The reason for this is so as to never be `pub`, to avoid soundness footguns with contrived
+    /// APIs.
+    ///
+    /// If you do want to expose similar functionality `pub`licly, simply redefine your own `pub fn`
+    /// with your own `fn` name, and call this method in it.
     #[cfg(doc)]
     fn destructure_fields_disabling_impl_drop(self)
       -> Self::Fields
