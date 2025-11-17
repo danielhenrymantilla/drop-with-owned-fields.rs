@@ -31,6 +31,8 @@ https://github.com/rust-secure-code/safety-dance/)
 
 <!-- Templated by `cargo-generate` using https://github.com/danielhenrymantilla/proc-macro-template -->
 
+---
+
 The [`#[drop_with_owned_fields]`][`drop_with_owned_fields`] attribute of this crate automates and
 encapsulates the process of wrapping the fields of a struct in [`ManuallyDrop`], which is typically
 needed when having the intention to [`drop()`-in-place][`ManuallyDrop::drop()`] a certain field
@@ -69,7 +71,7 @@ snippet fail!
     <span class="code_with_line_wrap">
 
     ```rust ,ignore
-    # /*
+    # use {}; /*
     error[E0507]: cannot move out of `self.f` which is behind a mutable reference
      --> src/_lib.rs:37:9
       |
@@ -208,7 +210,7 @@ you will then get the following compiler error message:
 <span class="code_with_line_wrap">
 
 ```rust ,ignore
-# /*
+# use {}; /*
 error[E0277]: the trait bound `Example: DropWithOwnedFields` is not satisfied
  --> src/_lib.rs:130:1
   |
@@ -480,7 +482,7 @@ let _foo = Foo {
 <span class="code_with_line_wrap">
 
 ```rust ,ignore
-# /*
+# use {}; /*
 error[E0560]: struct `Foo<_>` has no field named `f`
   --> src/_lib.rs:392:5
    |
