@@ -3,6 +3,13 @@
 Safe and sound _owned_ access to a `struct`'s fields in `Drop`: no more `unsafe` usage of
 `ManuallyDrop`!
 
+  - 🪄 Macro/sugary equivalent of
+[`::safe-manually-drop`](https://docs.rs/safe-manually-drop). 🪄
+
+    ### 💡 You may want to use that other crate instead, its lack of macros makes it less magical. 💡
+
+    Only use this crate if you care about lack-of-boilerplate code that much.
+
 [![Repository](https://img.shields.io/badge/repository-GitHub-brightgreen.svg)](
 https://github.com/danielhenrymantilla/drop-with-owned-fields.rs)
 [![Latest version](https://img.shields.io/crates/v/drop-with-owned-fields.svg)](
