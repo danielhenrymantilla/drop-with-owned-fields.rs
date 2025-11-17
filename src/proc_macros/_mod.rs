@@ -62,13 +62,37 @@ fn drop_with_owned_fields(
 ) -> TokenStream
 {
     drop_with_owned_fields_impl(args.into(), input.into())
-    //  .map(|ret| { println!("{}", ret); ret })
+        .map(|ret| if false { // <- toggle when debugging.
+            use ::std::hash::*;
+            let random = ::std::hash::RandomState::new().build_hasher().finish();
+            let temp_dir = &format!(
+                "{}/target/debug/macro-expansions",
+                ::std::env::var("CARGO_MANIFEST_DIR").unwrap()
+            );
+            ::std::fs::create_dir_all(temp_dir).ok();
+            let filename = &format!(
+                "{temp_dir}/drop_with_owned_fields-{random:#x}.rs",
+            );
+            ::std::fs::write(
+                filename,
+                ret.to_string(),
+            ).unwrap();
+            ::std::process::Command::new("rustfmt")
+                .args(["--edition", "2021", filename])
+                .status()
+                .ok();
+            quote!(
+                ::core::include!(#filename);
+            )
+        } else {
+            ret
+        })
         .unwrap_or_else(|err| {
             let mut errors =
                 err .into_iter()
                     .map(|err| Error::new(
                         err.span(),
-                        format_args!("`#[drop_with_owned_fields::drop_with_owned_fields]`: {}", err),
+                        format_args!("`#[drop_with_owned_fields::drop_with_owned_fields]`: {}", err)
                     ))
             ;
             let mut err = errors.next().unwrap();
