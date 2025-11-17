@@ -237,7 +237,7 @@ fn drop_with_owned_fields_impl(
     let other_derives_and_attrs_hack =
         derives::best_effort_compat_with_other_derives_and_attrs(
             &input,
-            StructNameFields,
+            &quote!(#struct_name_helper_module :: #StructNameFields),
         )?
     ;
 

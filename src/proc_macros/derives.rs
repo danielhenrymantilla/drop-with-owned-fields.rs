@@ -34,7 +34,7 @@ use super::*;
 pub(crate)
 fn best_effort_compat_with_other_derives_and_attrs(
     input: &DeriveInput,
-    StructNameDestructuredFields @ _: &'_ Ident,
+    StructNameDestructuredFields @ _: &'_ TokenStream2,
 ) -> Result<TokenStream2>
 {
     let mut input = input.clone();
@@ -60,13 +60,13 @@ fn best_effort_compat_with_other_derives_and_attrs(
         Retain::Yes
     }());
 
-    let mut serialize = None;
+    let mut deserialize = None;
     let mut clone = None;
     let mut default = None;
     all_derives.retain_mut(|path| Retain::Yes == {
         match &path.segments.last().unwrap().ident.to_string()[..] {
-            | "Serialize" => {
-                serialize = Some(());
+            | "Deserialize" => {
+                deserialize = Some(());
                 Retain::Yes
             },
             | "Clone" if clone.is_none() => {
@@ -84,8 +84,9 @@ fn best_effort_compat_with_other_derives_and_attrs(
     });
 
     let StructName @ _ = &input.ident;
-    let StructNameDestructuredFields_str = &StructNameDestructuredFields.to_string();
-    if serialize.is_some() {
+    let generics = input.generics.split_for_impl().0;
+    let StructNameDestructuredFields_str = &quote!(#StructNameDestructuredFields #generics).to_string();
+    if deserialize.is_some() {
         input.attrs.push(parse_quote!(
             #[serde(from = #StructNameDestructuredFields_str)]
         ));
@@ -185,6 +186,7 @@ fn best_effort_compat_with_other_derives_and_attrs(
             }
         ));
     }
+
     // 1. the derives hack:
     if all_derives.is_empty().not() {
         input.attrs.insert(0, parse_quote!(
@@ -195,5 +197,6 @@ fn best_effort_compat_with_other_derives_and_attrs(
         #[::drop_with_owned_fields::ඞ::annihilate]
     ));
     input.to_tokens(&mut ret);
+
     Ok(ret)
 }
