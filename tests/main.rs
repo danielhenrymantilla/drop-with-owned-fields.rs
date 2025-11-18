@@ -49,6 +49,37 @@ mod module {
     {
         it
     }
+
+    // No serialize this time.
+    #[::drop_with_owned_fields::drop_with_owned_fields(as _)]
+    #[derive(
+        Debug, Default,
+        ::core::clone::Clone,
+        Hash,
+        PartialEq, Eq, PartialOrd, Ord,
+        ::serde_derive::Deserialize,
+    )]
+    pub struct TxnNoSerialize<X> {
+        some_field: X,
+    }
+
+    impl<X> ::drop_with_owned_fields::DropWithOwnedFields for TxnNoSerialize<X> {
+        fn drop(
+            _: ::drop_with_owned_fields::DestructuredFieldsOf<Self>,
+        )
+        {}
+    }
+
+    fn _assert_impls_except_serialize(it: TxnNoSerialize<i32>)
+      -> impl Debug
+            + Default
+            + Clone
+            + Hash
+            + Ord
+            + DeserializeOwned
+    {
+        it
+    }
 }
 
 fn _field_access(it: &module::Foo) {
@@ -59,5 +90,4 @@ fn _field_access(it: &module::Foo) {
         &it.d,
         // &it.e,
     );
-
 }

@@ -201,7 +201,7 @@ type DestructuredFieldsOf<T : ?Sized + DestructureFields> = T::Fields;
 ///     <span class="code_with_line_wrap">
 ///
 ///     ```rust ,ignore
-///     # /*
+///     # use {}; /*
 ///     error[E0412]: cannot find type `FooFields` in this scope
 ///       --> src/_lib.rs:114:12
 ///        |

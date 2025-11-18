@@ -62,13 +62,37 @@ fn drop_with_owned_fields(
 ) -> TokenStream
 {
     drop_with_owned_fields_impl(args.into(), input.into())
-    //  .map(|ret| { println!("{}", ret); ret })
+        .map(|ret| if false { // <- toggle when debugging.
+            use ::std::hash::*;
+            let random = ::std::hash::RandomState::new().build_hasher().finish();
+            let temp_dir = &format!(
+                "{}/target/debug/macro-expansions",
+                ::std::env::var("CARGO_MANIFEST_DIR").unwrap()
+            );
+            ::std::fs::create_dir_all(temp_dir).ok();
+            let filename = &format!(
+                "{temp_dir}/drop_with_owned_fields-{random:#x}.rs",
+            );
+            ::std::fs::write(
+                filename,
+                ret.to_string(),
+            ).unwrap();
+            ::std::process::Command::new("rustfmt")
+                .args(["--edition", "2021", filename])
+                .status()
+                .ok();
+            quote!(
+                ::core::include!(#filename);
+            )
+        } else {
+            ret
+        })
         .unwrap_or_else(|err| {
             let mut errors =
                 err .into_iter()
                     .map(|err| Error::new(
                         err.span(),
-                        format_args!("`#[drop_with_owned_fields::drop_with_owned_fields]`: {}", err),
+                        format_args!("`#[drop_with_owned_fields::drop_with_owned_fields]`: {}", err)
                     ))
             ;
             let mut err = errors.next().unwrap();
@@ -213,11 +237,13 @@ fn drop_with_owned_fields_impl(
     let other_derives_and_attrs_hack =
         derives::best_effort_compat_with_other_derives_and_attrs(
             &input,
-            StructNameFields,
+            &quote!(#struct_name_helper_module :: #StructNameFields),
         )?
     ;
 
     Ok(quote!(
+        // we keep this outside the module to make sure no evil derive tries to mess with our
+        // private field.
         #other_derives_and_attrs_hack
 
         #[doc(inline)]
@@ -227,6 +253,9 @@ fn drop_with_owned_fields_impl(
         #maybe_re_export
 
         mod #struct_name_helper_module {
+            #![allow(nonstandard_style)]
+
+            #[allow(unused)]
             use super::*;
 
             #struct_fields_def
@@ -236,7 +265,7 @@ fn drop_with_owned_fields_impl(
             struct #StructName #IntroGenerics
             #where_clauses
             {
-                manually_drop_fields:
+                ඞmanually_drop_fields:
                     ::core::mem::ManuallyDrop<
                         ::drop_with_owned_fields::DestructuredFieldsOf<Self>,
                     >
@@ -252,7 +281,7 @@ fn drop_with_owned_fields_impl(
                 fn drop(&mut self) {
                     <Self as ::drop_with_owned_fields::DropWithOwnedFields>::drop(
                         unsafe {
-                            ::core::mem::ManuallyDrop::take(&mut self.manually_drop_fields)
+                            ::core::mem::ManuallyDrop::take(&mut self.ඞmanually_drop_fields)
                         }
                     )
                 }
@@ -298,7 +327,7 @@ fn drop_with_owned_fields_impl(
                 const
                 fn into(self) -> #StructName #FwdGenerics {
                     #StructName {
-                        manually_drop_fields: ::core::mem::ManuallyDrop::new(
+                        ඞmanually_drop_fields: ::core::mem::ManuallyDrop::new(
                             self,
                         ),
                     }
@@ -306,6 +335,7 @@ fn drop_with_owned_fields_impl(
             }
 
             impl #IntroGenerics #StructName #FwdGenerics {
+                #[allow(unused)]
                 #[inline]
                 #pub_capped_at_crate
                 const
@@ -317,7 +347,7 @@ fn drop_with_owned_fields_impl(
                     unsafe {
                         /* not `const`:
                         ::core::mem::ManuallyDrop::take(
-                            &mut this.manually_drop_fields,
+                            &mut this.ඞmanually_drop_fields,
                         )
                         // not available before `1.83.0`
                         ::core::mem::transmute_copy(&this)
@@ -336,7 +366,6 @@ fn drop_with_owned_fields_impl(
                 }
             }
 
-            // if no `deref=false`
             impl #IntroGenerics
                 ::core::ops::Deref
             for
@@ -347,7 +376,7 @@ fn drop_with_owned_fields_impl(
 
                 #[inline]
                 fn deref(&self) -> &Self::Target {
-                    &*self.manually_drop_fields
+                    &*self.ඞmanually_drop_fields
                 }
             }
             impl #IntroGenerics
@@ -358,7 +387,7 @@ fn drop_with_owned_fields_impl(
             {
                 #[inline]
                 fn deref_mut(&mut self) -> &mut Self::Target {
-                    &mut *self.manually_drop_fields
+                    &mut *self.ඞmanually_drop_fields
                 }
             }
         }
